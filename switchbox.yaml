@@ -1,0 +1,415 @@
+esphome:
+  name: switchbox
+  friendly_name: switchbox
+  on_boot:
+    - lambda: |-
+        int a=42;
+        static graphical_display_menu::GraphicalDisplayMenu* menulist[] = {status_menu};
+        id(menus)=menulist;
+        id(menu_count)=sizeof(menulist)/ sizeof(*menulist);
+        id(deep_sleep1).prevent_deep_sleep();
+        id(is_sleep)=false;
+
+  on_shutdown: 
+    - lambda: |-
+          ESP_LOGE("SLEEP","Preparing for sleep");
+          int pin = 0;
+          bool level = 1;
+          const auto gpio_pin = gpio_num_t(0);
+          // gpio_set_direction(gpio_pin, GPIO_MODE_INPUT);
+          gpio_hold_en(gpio_pin);
+          // Internal pullup/pulldown resistors are enabled automatically, when
+          // ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS is set (by default it is)
+          esp_deep_sleep_enable_gpio_wakeup(1 << pin,static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
+          ESP_LOGE("SLEEP","Preparing for sleep DONE");
+
+  on_loop: 
+    - lambda: |-
+        id(is_sleep)=id(sw_sleep).state;
+        if (id(is_sleep)){
+          id(deep_sleep1).allow_deep_sleep();
+        }else{
+          id(deep_sleep1).prevent_deep_sleep();
+        }
+
+        
+
+esp32:
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+safe_mode:
+  disabled: True
+
+deep_sleep:
+  id: deep_sleep1
+  run_duration: 30sec
+  sleep_duration: 10min
+
+
+external_components:
+  - source: components
+
+# Enable logging
+logger:
+  level: DEBUG
+  baud_rate: 0  # Disables logging output to USB/UART
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_key
+
+  on_client_connected: 
+    - lambda: |-
+        static graphical_display_menu::GraphicalDisplayMenu* menulist[] = {my_menu,my_menu2,status_menu};
+        id(menus)=menulist;
+        id(menu_count)=sizeof(menulist)/ sizeof(*menulist);
+
+  on_client_disconnected: 
+    - lambda: |-
+        static graphical_display_menu::GraphicalDisplayMenu* menulist[] = {status_menu};
+        id(menus)=menulist;
+        id(menu_count)=sizeof(menulist)/ sizeof(*menulist);
+    
+
+ota:
+  - platform: esphome
+    password: !secret ota_key
+
+web_server:
+  version: 3
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  # ap:
+    # ssid: "Switchbox Fallback Hotspot"
+    # password: "6s8GAM3UQ6Ed"
+
+# captive_portal:
+    
+
+
+globals:
+    - id: current_menu
+      type: int
+      restore_value: no
+      initial_value: '0'   
+
+    # - id: menus
+    #   type: int
+    #   restore_value: no
+    #   initial_value: '0);Component* menulist[]={my_menu, my_menu2}; int menucount=sizeof(menulist'
+    - id: menus
+      type: graphical_display_menu::GraphicalDisplayMenu**
+      restore_value: no
+
+    - id: menu_count
+      type: int
+      restore_value: no  
+
+    - id: is_sleep
+      type: bool
+      restore_value: no
+      initial_value: 'false'
+
+      
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+number:
+  - platform: template
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: True
+    initial_value: 0
+    id: n_template1
+  - platform: template
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: True
+    initial_value: 0
+    id: n_template2
+  - platform: template
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: True
+    initial_value: 0
+    id: n_template3
+  - platform: template
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: True
+    initial_value: 0
+    id: n_template4
+  - platform: template
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: True
+    initial_value: 0
+    id: n_template5
+  - platform: template
+    min_value: 0
+    max_value: 10
+    step: 1
+    optimistic: True
+    initial_value: 0
+    id: n_template6
+
+
+output:
+  # - platform: gpio
+  #   pin: 15
+  #   id: status_led
+
+# light:
+  # - platform: binary
+  #   name: "Status LED"
+  #   output: status_led
+
+  # - platform: esp32_rmt_led_strip
+  #   chipset: WS2812
+  #   pin: GPIO8
+  #   num_leds: 1
+  #   rgb_order: GRB
+  #   name: "Onboard RGB LED"
+
+font:
+   - file: "https://xecut.me/_assets/fonts/xecut/xecut.ttf"
+     id: my_font
+     size: 16
+   - file: "gfonts://Roboto"
+     id: roboto_20
+     size: 14
+
+i2c:
+  sda: 22
+  scl: 21
+  scan: True
+
+# - platform: sh1107_i2c
+# model: SH1107 128X128
+display:
+  - platform: ssd1306_i2c
+    model: 'SH1107_128x128'
+    flip_x: false
+    flip_y: false
+    offset_y: 0
+    offset_x: 0
+    external_vcc: true
+    update_interval: 1s
+    id: my_displayu
+    rotation: 270
+    lambda: |-
+      
+      //it.printf(it.get_width()/2,8,id(my_font),TextAlign::CENTER,"< %d / %d >",id(current_menu)+1,id(menu_count));
+      it.print(it.get_width()/2,8,id(my_font),TextAlign::CENTER,"< switchbox >");
+      it.line(0,16,it.get_width(),16);
+      if (id(is_sleep)) {
+        it.print(it.get_width()/2,60,id(my_font),TextAlign::CENTER,"SLEEP");  
+        return;
+      }
+      auto menu=id(menus)[id(current_menu)];
+      if (menu) it.menu(0,17,menu,it.get_width(),it.get_height()-17);
+      else it.print(it.get_width()/2,60,id(my_font),TextAlign::CENTER,"NO MENU");
+      /*
+      switch(id(current_menu)){
+        case 0:
+          it.menu(0,17,id(my_menu),it.get_width(),it.get_height()-17);
+          break;
+        case 1:
+          it.menu(0,17,id(my_menu2),it.get_width(),it.get_height()-17);
+          break;
+        default:
+          it.print(0,60,id(my_font),TextAlign::CENTER,"NO MENU");
+          break;
+      }
+      */
+
+text_sensor:
+  - platform: uptime
+    id: ts_uptime
+  - platform: wifi_info
+    ip_address: 
+      id: ts_ip
+    
+graphical_display_menu:
+  - id: status_menu
+    font: roboto_20
+    active: False
+    mode: joystick  
+    items:
+      - type: label
+        text: !lambda |-
+          char str[64];
+          time_t t = id(ha_time).timestamp_now();
+          struct tm *tmp = localtime(&t);
+          strftime(str,sizeof(str),"%Y-%m-%d %H:%M:%S", tmp);
+          return std::string(str);
+      - type: label
+        text: !lambda |-
+          return "Uptime " + id(ts_uptime).state;
+      - type: label
+        text: !lambda |-
+          return "IP: " + id(ts_ip).state;
+      - type: label
+        text: !lambda |-
+          return id(is_sleep) ? "SLEEP" : "AWAKE";
+  - id: my_menu
+    font: roboto_20
+    active: False
+    mode: joystick  
+    items:
+      - type: switch
+        switch: lr_3
+        text: "Main"
+        immediate_edit: True
+      - type: switch
+        switch: lr_1
+        text: "Rear"
+        immediate_edit: True
+      - type: switch
+        switch: lr_2
+        text: "Rear Wall"
+        immediate_edit: True
+      - type: switch
+        switch: sw_table
+        immediate_edit: True
+        text: Table
+  - id: my_menu2
+    font: roboto_20
+    active: False
+    mode: joystick  
+    items:
+      - type: number
+        number: n_template1
+        immediate_edit: True
+      - type: number
+        number: n_template2
+        immediate_edit: True
+      - type: number
+        number: n_template3
+        immediate_edit: True
+      - type: number
+        number: n_template4
+        immediate_edit: True
+      - type: number
+        number: n_template5
+        immediate_edit: True
+      - type: number
+        number: n_template6
+        immediate_edit: True
+
+switch_array:
+  - pins: [7,5,3,1,18,14]
+    on_key:
+      - lambda: |-
+          if(id(is_sleep)) return;
+          auto menu=id(menus)[id(current_menu)];
+          menu->select(pos);
+          auto it = menu->get_item(pos);
+          it->select_prev();
+  - pins: [6,4,2,23,19,15]
+    on_key:
+      - lambda: |-
+          if(id(is_sleep)) return;
+          auto menu=id(menus)[id(current_menu)];
+          menu->select(pos);
+          auto it = menu->get_item(pos);
+          it->select_next();
+
+binary_sensor:
+
+  - platform: template
+    name: sw_is_sleep
+    lambda: |-
+      return id(is_sleep);
+
+  - platform: gpio
+    pin: 
+      number: 0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "0 SLEEP"
+    internal: True
+    id: sw_sleep
+
+  - platform: gpio
+    pin: 
+      number: 13
+      mode: INPUT_PULLUP
+      inverted: True
+    id: dir_l
+    name: "13 L"
+    on_press: 
+      - lambda: |-
+          if(id(is_sleep)) return;
+          id(current_menu)=(id(current_menu)?id(current_menu):id(menu_count))-1;
+
+        
+
+  - platform: gpio
+    pin: 
+      number: 20
+      mode: INPUT_PULLUP
+      inverted: True
+    id: dir_r
+    name: "20 R"
+    on_press: 
+      - lambda: |-
+          if(id(is_sleep)) return;
+          id(current_menu)=(id(current_menu)+1)%id(menu_count);
+
+
+  - platform: gpio
+    pin: 
+      number: 8
+      mode: INPUT_PULLUP
+      inverted: True
+    id: dir_d
+    name: "8"
+    on_press:
+      - lambda: |-
+          if(id(is_sleep)) return;
+          auto menu=id(menus)[id(current_menu)];
+          menu->down();
+
+  - platform: gpio
+    pin: 
+      number: 9
+      mode: INPUT_PULLUP
+      inverted: True
+    id: dir_u
+    name: "9"
+    on_press:
+      - lambda: |-
+          if(id(is_sleep)) return;
+          auto menu=id(menus)[id(current_menu)];
+          menu->up();
+
+
+switch:
+  - platform: homeassistant
+    entity_id: light.space_light_relay_3
+    id: lr_3
+  - platform: homeassistant
+    entity_id: light.space_light_relay_1
+    id: lr_1
+  - platform: homeassistant
+    entity_id: light.space_light_relay_2
+    id: lr_2
+
+  - platform: homeassistant
+    entity_id: switch.table_power
+    id: sw_table
