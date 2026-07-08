@@ -23,7 +23,7 @@ namespace esphome {
         // If a name was generated, apply it and register it with the core App
         if (!name.empty()) {
           //sensor->set_name(name.c_str());
-          sensor->configure_entity_(name.c_str(),0,0);
+          //sensor->configure_entity_(name.c_str(),0,0);
           App.register_binary_sensor(sensor);
         }
 
